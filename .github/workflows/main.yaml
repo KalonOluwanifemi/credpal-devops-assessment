@@ -3,7 +3,7 @@ name: Build and Push Production Image
 on:
   push:
     branches:
-      - production
+      - main
 
 jobs:
   build:
