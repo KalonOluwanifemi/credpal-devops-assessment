@@ -1,4 +1,4 @@
-name: Build and Push Staging Image to DokerHub
+name: Build and Push Staging Image to DockerHub
 
 on:
   push:
