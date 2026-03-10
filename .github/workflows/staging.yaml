@@ -39,8 +39,10 @@ jobs:
 
       - name: Build Image
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:$TAG .
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:$TAG\
+                       -t ${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:latest .
 
       - name: Push Image
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:$TAG
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:latest
