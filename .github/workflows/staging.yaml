@@ -119,8 +119,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-north-1
 
-      - name: Install SSH Client
-        run: sudo apt-get update && sudo apt-get install -y openssh-client
+      - name: Install AWS CLI + Session Manager Plugin
+        run: |
+          sudo apt-get update && sudo apt-get install -y awscli
+          curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" \
+            -o session-manager-plugin.deb
+          sudo dpkg -i session-manager-plugin.deb
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -130,36 +134,30 @@ jobs:
           cd terraform
           terraform init -reconfigure
 
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
-      - name: Get EC2 Public IP
-        id: ec2-ip
+      - name: Get EC2 Instance ID
         run: |
-         cd terraform
-         EC2_IP=$(terraform output -json 2>/dev/null | jq -r '.app_public_ip.value')
-         if [ -z "$EC2_IP" ] || [ "$EC2_IP" == "null" ]; then
-         echo "ERROR: Could not retrieve EC2 IP from Terraform outputs"
-         exit 1
-         fi
-         echo "EC2_IP=$EC2_IP" >> $GITHUB_ENV
+          cd terraform
+          INSTANCE_ID=$(terraform output -json 2>/dev/null | jq -r '.app_instance_id.value')
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "null" ]; then
+            echo "ERROR: Could not retrieve EC2 Instance ID"
+            exit 1
+          fi
+          echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
 
-      - name: Deploy Docker Containers to EC2
+      - name: Deploy Docker Containers via SSM
         env:
           TAG: ${{ needs.build.outputs.tag }}
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-          EC2_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
         run: |
-          echo "$EC2_KEY" > ec2_key.pem
-          chmod 600 ec2_key.pem
-          ssh -o StrictHostKeyChecking=no -i ec2_key.pem ec2-user@${{ env.EC2_IP }} << EOF
-            for container in credpal-app redis; do
-              if docker ps -a --format '{{.Names}}' | grep -Eq "^\$container\$"; then
-                docker stop \$container
-                docker rm \$container
-              fi
-            done
-            docker run -d --name redis -p 6379:6379 redis:latest
-            docker pull $DOCKER_USER/credpal-app-staging:$TAG
-            docker run -d --name credpal-app --link redis:redis -p 3000:3000 $DOCKER_USER/credpal-app-staging:$TAG
-          EOF
+          aws ssm send-command \
+            --instance-ids "${{ env.INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands='[
+              "for container in credpal-app redis; do if docker ps -a --format \"{{.Names}}\" | grep -Eq \"^$container$\"; then docker stop $container && docker rm $container; fi; done",
+              "docker run -d --name redis -p 6379:6379 redis:latest",
+              "docker pull '"$DOCKER_USER"'/credpal-app-staging:'"$TAG"'",
+              "docker run -d --name credpal-app --link redis:redis -p 3000:3000 '"$DOCKER_USER"'/credpal-app-staging:'"$TAG"'"
+            ]' \
+            --region eu-north-1 \
+            --output text \
+            --query "Command.CommandId"
