@@ -4,13 +4,13 @@
 
 data "aws_availability_zones" "available" {}
 
-data "aws_ami" "amazon_linux" {
+data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["amazon"]
+  owners      = ["099720109477"]  # Canonical
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-x86_64"]
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
   }
 }
 
@@ -174,7 +174,7 @@ resource "aws_security_group" "ec2_sg" {
 ############################
 
 resource "aws_instance" "app" {
-  ami                         = data.aws_ami.amazon_linux.id
+  ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
   subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
@@ -182,14 +182,14 @@ resource "aws_instance" "app" {
 
   user_data = <<-EOF
     #!/bin/bash
-    yum update -y
+    apt-get update -y
 
     # Install Docker
     if ! command -v docker &> /dev/null; then
-      dnf install docker -y
+      apt-get install -y docker.io
       systemctl start docker
       systemctl enable docker
-      usermod -aG docker ec2-user
+      usermod -aG docker ubuntu
     fi
 
     # Install Docker Compose
