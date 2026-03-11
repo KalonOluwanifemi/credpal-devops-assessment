@@ -183,19 +183,26 @@ resource "aws_instance" "app" {
     #!/bin/bash
     yum update -y
 
-    # Install Docker
-    amazon-linux-extras install docker -y
-    systemctl start docker
-    systemctl enable docker
+    # Install Docker only if not installed
+    if ! command -v docker &> /dev/null; then
+      echo "Docker not found, installing..."
+      amazon-linux-extras install docker -y
+      systemctl start docker
+      systemctl enable docker
+      usermod -aG docker ec2-user
+    else
+      echo "Docker already installed, skipping."
+    fi
 
-    # Allow ec2-user to run docker
-    usermod -aG docker ec2-user
-
-    # Install Docker Compose
-    curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
-      -o /usr/local/bin/docker-compose
-
-    chmod +x /usr/local/bin/docker-compose
+    # Install Docker Compose only if not installed
+    if ! command -v docker-compose &> /dev/null; then
+      echo "Docker Compose not found, installing..."
+      curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+        -o /usr/local/bin/docker-compose
+      chmod +x /usr/local/bin/docker-compose
+    else
+      echo "Docker Compose already installed, skipping."
+    fi
   EOF
 
   tags = {
