@@ -112,40 +112,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-north-1
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Init
-        run: |
-          cd terraform
-          terraform init -reconfigure
-
-      - name: Get Elastic IP
-        run: |
-          cd terraform
-          EC2_IP=$(terraform output -json 2>/dev/null | jq -r '.app_public_ip.value')
-          if [ -z "$EC2_IP" ] || [ "$EC2_IP" == "null" ]; then
-            echo "ERROR: Could not retrieve Elastic IP"
-            exit 1
-          fi
-          echo "EC2_IP=$EC2_IP" >> $GITHUB_ENV
-
       - name: Deploy Docker Containers via SSH
         env:
           TAG: ${{ needs.build.outputs.tag }}
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           EC2_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
+          EC2_IP: ${{ secrets.EC2_PUBLIC_IP }}
         run: |
           echo "$EC2_KEY" > ec2_key.pem
           chmod 600 ec2_key.pem
-          ssh -o StrictHostKeyChecking=no -i ec2_key.pem ec2-user@${{ env.EC2_IP }} << EOF
+          ssh -o StrictHostKeyChecking=no -i ec2_key.pem credpal@$EC2_IP << EOF
             for container in credpal-app redis; do
               if docker ps -a --format '{{.Names}}' | grep -Eq "^\$container\$"; then
                 docker stop \$container
