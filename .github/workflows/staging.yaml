@@ -104,14 +104,7 @@ jobs:
         if: env.PLAN_EXIT == '0'
         run: echo "No infrastructure changes, skipping Terraform apply."
 
-  deploy-app:
-    runs-on: ubuntu-latest
-    needs: [build, deploy-infra]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+  
       - name: Deploy Docker Containers via SSH
         env:
           TAG: ${{ needs.build.outputs.tag }}
@@ -123,12 +116,12 @@ jobs:
           chmod 600 ec2_key.pem
           ssh -o StrictHostKeyChecking=no -i ec2_key.pem credpal@$EC2_IP << EOF
             for container in credpal-app redis; do
-              if docker ps -a --format '{{.Names}}' | grep -Eq "^\$container\$"; then
-                docker stop \$container
-                docker rm \$container
+              if sudo docker ps -a --format '{{.Names}}' | grep -Eq "^\$container\$"; then
+                sudo docker stop \$container
+                sudo docker rm \$container
               fi
             done
-            docker run -d --name redis -p 6379:6379 redis:latest
-            docker pull $DOCKER_USER/credpal-app-staging:$TAG
-            docker run -d --name credpal-app --link redis:redis -p 3000:3000 $DOCKER_USER/credpal-app-staging:$TAG
+            sudo docker run -d --name redis -p 6379:6379 redis:latest
+            sudo docker pull $DOCKER_USER/credpal-app-staging:$TAG
+            sudo docker run -d --name credpal-app --link redis:redis -p 3000:3000 $DOCKER_USER/credpal-app-staging:$TAG
           EOF
