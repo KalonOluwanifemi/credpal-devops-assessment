@@ -12,6 +12,18 @@ This project is currently running in a **staging environment**. Due to subscript
 
 The production environment will have all the necessary security features, a custom domain, and full HTTPS support configured end to end.
 
+## Live Staging Environment
+
+The application is currently deployed and accessible at the following endpoints:
+
+| Endpoint | Description |
+|----------|-------------|
+| [/health](http://staging-alb-362296424.eu-north-1.elb.amazonaws.com/health) | Health check endpoint |
+| [/process](http://staging-alb-362296424.eu-north-1.elb.amazonaws.com/process) | Process endpoint |
+| [/status](http://staging-alb-362296424.eu-north-1.elb.amazonaws.com/status) | Status endpoint |
+
+> **Note:** This is a staging environment running over HTTP. HTTPS and a custom domain will be configured in the production environment.
+
 ## Architecture Overview
 ```
 Internet → ALB (Port 80) → EC2 Instance → Docker (Node.js App :3000 + Redis :6379)
