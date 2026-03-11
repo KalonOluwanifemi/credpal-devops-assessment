@@ -41,7 +41,7 @@ resource "aws_internet_gateway" "igw" {
 }
 
 ############################
-# PUBLIC SUBNETS (for ALB)
+# PUBLIC SUBNETS (for ALB + EC2)
 ############################
 
 resource "aws_subnet" "public" {
@@ -58,7 +58,7 @@ resource "aws_subnet" "public" {
 }
 
 ############################
-# PRIVATE SUBNETS (for EC2)
+# PRIVATE SUBNETS
 ############################
 
 resource "aws_subnet" "private" {
@@ -150,7 +150,7 @@ resource "aws_security_group" "ec2_sg" {
   }
 
   ingress {
-    description = "SSH (optional for debugging)"
+    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -196,16 +196,17 @@ resource "aws_iam_instance_profile" "ec2_ssm_profile" {
   role = aws_iam_role.ec2_ssm_role.name
 }
 
-
 ############################
 # EC2 INSTANCE
 ############################
 
 resource "aws_instance" "app" {
-  ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.private[0].id
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  ami                         = data.aws_ami.amazon_linux.id
+  instance_type               = var.instance_type
+  subnet_id                   = aws_subnet.public[0].id         # moved to public subnet
+  vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
+  iam_instance_profile        = aws_iam_instance_profile.ec2_ssm_profile.name
+  associate_public_ip_address = true
 
   user_data = <<-EOF
     #!/bin/bash
@@ -239,6 +240,19 @@ resource "aws_instance" "app" {
 }
 
 ############################
+# ELASTIC IP
+############################
+
+resource "aws_eip" "app" {
+  instance = aws_instance.app.id
+  domain   = "vpc"
+
+  tags = {
+    Name = "${var.env}-eip"
+  }
+}
+
+############################
 # APPLICATION LOAD BALANCER
 ############################
 
@@ -246,9 +260,8 @@ resource "aws_lb" "app" {
   name               = "${var.env}-alb"
   internal           = false
   load_balancer_type = "application"
-
-  security_groups = [aws_security_group.alb_sg.id]
-  subnets         = aws_subnet.public[*].id
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = aws_subnet.public[*].id
 
   tags = {
     Name = "${var.env}-alb"
@@ -276,6 +289,21 @@ resource "aws_lb_target_group" "app" {
 }
 
 ############################
+# LISTENER
+############################
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.app.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
+############################
 # REGISTER EC2 TO TARGET GROUP
 ############################
 
@@ -285,4 +313,16 @@ resource "aws_lb_target_group_attachment" "app" {
   port             = var.app_port
 }
 
+############################
+# OUTPUTS
+############################
 
+output "app_public_ip" {
+  value       = aws_eip.app.public_ip
+  description = "Elastic IP of the EC2 app server"
+}
+
+output "alb_dns_name" {
+  value       = aws_lb.app.dns_name
+  description = "DNS name of the Application Load Balancer"
+}
