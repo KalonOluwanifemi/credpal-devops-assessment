@@ -14,7 +14,7 @@ The production environment will have all the necessary security features, a cust
 
 ## Architecture Overview
 ```
-Internet → ALB (Port 80) → EC2 Instance (Port 3000) → Node.js App + Redis
+Internet → ALB (Port 80) → EC2 Instance → Docker (Node.js App :3000 + Redis :6379)
 ```
 
 ### Infrastructure Components
