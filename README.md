@@ -1,6 +1,16 @@
 # Credpal DevOps Assessment
 
-A production-ready Node.js application deployment pipeline built with Docker, Terraform, and GitHub Actions on AWS.
+A Node.js application deployment pipeline built with Docker, Terraform, and GitHub Actions on AWS.
+## Note
+
+This project is currently running in a **staging environment**. Due to subscription and cost constraints, the following features were not implemented in this assessment but will be available in the production setup:
+
+- **HTTPS** via SSL/TLS certificate
+- **Custom domain name** configured with Route 53 or any DNS provider
+- **SSL Certificate** provisioned via AWS ACM or Certbot with Nginx
+- **HTTP to HTTPS redirect** on the load balancer
+
+The production environment will have all the necessary security features, a custom domain, and full HTTPS support configured end to end.
 
 ## Architecture Overview
 ```
