@@ -116,6 +116,11 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init -reconfigure
+
       - name: Get EC2 Public IP
         id: ec2-ip
         run: |
