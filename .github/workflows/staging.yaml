@@ -133,9 +133,13 @@ jobs:
       - name: Get EC2 Public IP
         id: ec2-ip
         run: |
-          cd terraform
-          EC2_IP=$(terraform output -raw app_public_ip)
-          echo "EC2_IP=$EC2_IP" >> $GITHUB_ENV
+         cd terraform
+         EC2_IP=$(terraform output -raw app_public_ip 2>/dev/null)
+         if [ -z "$EC2_IP" ]; then
+         echo "ERROR: Could not retrieve EC2 IP from Terraform outputs"
+         exit 1
+         fi
+         echo "EC2_IP=$EC2_IP" >> $GITHUB_ENV
 
       - name: Deploy Docker Containers to EC2
         env:
