@@ -13,36 +13,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set Git SHA
-        run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
-
-      # other build steps...
-
-  deploy-infra:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Recreate TAG for this job
-      - name: Set Git SHA
-        run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-north-1
+          node-version: '18'  # match your Node.js version
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Plan
+      - name: Install dependencies
         run: |
-          cd terraform
-          terraform plan \
-          -var-file=staging.tfvars \
-          -var="docker_image=${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:${{ env.TAG }}"
+          cd app
+          npm install
+
+      - name: Run Tests
+        run: |
+          cd app
+          npm test
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set Git SHA
+        run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Build Image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:$TAG\
+                       -t ${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:latest .
+
+      - name: Push Image
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:$TAG
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:latest
