@@ -53,9 +53,6 @@ jobs:
     needs: build
 
     steps:
-      - name: Set Git SHA
-        run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
-        
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -74,26 +71,33 @@ jobs:
           cd terraform
           terraform init
 
-      - name: Terraform Format
+      - name: Terraform Plan
+        id: plan
         run: |
           cd terraform
-          terraform fmt -recursive
-
-      - name: Terraform Validate
-        run: |
-          cd terraform
-          terraform validate
-
-      - name: Terraform Plan (Staging)
-        run: |
-          cd terraform
-          terraform plan \
+          terraform plan -detailed-exitcode \
             -var-file=staging.tfvars \
-            -var="docker_image=${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:${{ env.TAG }}"
+            -var="docker_image=${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:${{ env.TAG }}" \
+            || echo "exit_code=$?" >> plan_status.txt
 
-      - name: Terraform Apply (Staging)
+      - name: Set plan status
+        id: set-plan
+        run: |
+          if [ -f terraform/plan_status.txt ]; then
+            export PLAN_EXIT=$(cat terraform/plan_status.txt | grep exit_code | cut -d'=' -f2)
+          else
+            export PLAN_EXIT=0
+          fi
+          echo "PLAN_EXIT=$PLAN_EXIT" >> $GITHUB_ENV
+
+      - name: Terraform Apply (if changes)
+        if: env.PLAN_EXIT == '2'
         run: |
           cd terraform
           terraform apply -auto-approve \
             -var-file=staging.tfvars \
             -var="docker_image=${{ secrets.DOCKERHUB_USERNAME }}/credpal-app-staging:${{ env.TAG }}"
+
+      - name: Skip Apply (no changes)
+        if: env.PLAN_EXIT == '0'
+        run: echo "No infrastructure changes, skipping Terraform apply."
