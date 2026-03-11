@@ -1,7 +1,19 @@
-variable "env" {}
-variable "aws_region" {}
-variable "vpc_cidr" {}
-variable "instance_type" {}
-variable "docker_image" {}
-variable "app_port" {}
-variable "domain_name" {}
+variable "env" {
+  type = string
+}
+
+variable "vpc_cidr" {
+  type = string
+}
+
+variable "instance_type" {
+  type = string
+}
+
+variable "app_port" {
+  type = number
+}
+
+variable "docker_image" {
+  type = string
+}

@@ -1,4 +1,4 @@
-#############################
+############################
 # DATA SOURCES
 ############################
 
@@ -41,7 +41,7 @@ resource "aws_internet_gateway" "igw" {
 }
 
 ############################
-# PUBLIC SUBNETS (for ALB + EC2)
+# PUBLIC SUBNETS
 ############################
 
 resource "aws_subnet" "public" {
@@ -54,22 +54,6 @@ resource "aws_subnet" "public" {
 
   tags = {
     Name = "${var.env}-public-${count.index}"
-  }
-}
-
-############################
-# PRIVATE SUBNETS
-############################
-
-resource "aws_subnet" "private" {
-  count = 2
-
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index + 10)
-  availability_zone = data.aws_availability_zones.available.names[count.index]
-
-  tags = {
-    Name = "${var.env}-private-${count.index}"
   }
 }
 
@@ -142,7 +126,23 @@ resource "aws_security_group" "ec2_sg" {
   vpc_id = aws_vpc.main.id
 
   ingress {
-    description     = "Allow traffic from ALB"
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description     = "App port"
     from_port       = var.app_port
     to_port         = var.app_port
     protocol        = "tcp"
@@ -170,67 +170,33 @@ resource "aws_security_group" "ec2_sg" {
 }
 
 ############################
-# IAM ROLE FOR SSM
-############################
-
-resource "aws_iam_role" "ec2_ssm_role" {
-  name = "${var.env}-ec2-ssm-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action    = "sts:AssumeRole"
-      Effect    = "Allow"
-      Principal = { Service = "ec2.amazonaws.com" }
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ssm_policy" {
-  role       = aws_iam_role.ec2_ssm_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
-resource "aws_iam_instance_profile" "ec2_ssm_profile" {
-  name = "${var.env}-ec2-ssm-profile"
-  role = aws_iam_role.ec2_ssm_role.name
-}
-
-############################
 # EC2 INSTANCE
 ############################
 
 resource "aws_instance" "app" {
   ami                         = data.aws_ami.amazon_linux.id
   instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public[0].id         # moved to public subnet
+  subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
-  iam_instance_profile        = aws_iam_instance_profile.ec2_ssm_profile.name
   associate_public_ip_address = true
 
   user_data = <<-EOF
     #!/bin/bash
     yum update -y
 
-    # Install Docker only if not installed
+    # Install Docker
     if ! command -v docker &> /dev/null; then
-      echo "Docker not found, installing..."
-      amazon-linux-extras install docker -y
+      dnf install docker -y
       systemctl start docker
       systemctl enable docker
       usermod -aG docker ec2-user
-    else
-      echo "Docker already installed, skipping."
     fi
 
-    # Install Docker Compose only if not installed
+    # Install Docker Compose
     if ! command -v docker-compose &> /dev/null; then
-      echo "Docker Compose not found, installing..."
       curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
         -o /usr/local/bin/docker-compose
       chmod +x /usr/local/bin/docker-compose
-    else
-      echo "Docker Compose already installed, skipping."
     fi
   EOF
 
@@ -289,7 +255,7 @@ resource "aws_lb_target_group" "app" {
 }
 
 ############################
-# LISTENER
+# LISTENER - HTTP
 ############################
 
 resource "aws_lb_listener" "http" {
@@ -312,4 +278,3 @@ resource "aws_lb_target_group_attachment" "app" {
   target_id        = aws_instance.app.id
   port             = var.app_port
 }
-
