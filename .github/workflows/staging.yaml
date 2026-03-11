@@ -74,10 +74,10 @@ jobs:
           cd terraform
           terraform init
 
-      - name: Terraform Format Check
+      - name: Terraform Format
         run: |
           cd terraform
-          terraform fmt -check
+          terraform fmt -recursive
 
       - name: Terraform Validate
         run: |
