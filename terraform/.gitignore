@@ -1,0 +1,8 @@
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+awscliv2.zip
+aws/
+*.pem
+session-manager-plugin.deb
